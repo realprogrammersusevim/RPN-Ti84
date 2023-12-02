@@ -410,7 +410,7 @@ int main() {
         os_SetCursorPos(0, 0);
         os_PutStrFull("Arjun's RPN Calculator");
         os_SetCursorPos(1, 0);
-        os_PutStrFull("v2.2 (ASM)");
+        os_PutStrFull("v2.3 (ASM)");
         os_SetCursorPos(3, 0);
         os_PutStrFull("Visit git.io/ti84rpn");
         os_SetCursorPos(4, 0);

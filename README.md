@@ -8,7 +8,7 @@ Designed for the UIL Texas Calculator Applications competition, where the raw
 speed of Reverse Polish Notation combined with the familiarity of a Ti-84+CE can
 provide a significant competitive advantage.
 
-_Arjun's RPN Calculator v2.2 (ASM) - git.io/ti84rpn_
+_Arjun's RPN Calculator v2.3 (ASM) - git.io/ti84rpn_
 
 ### Story
 
