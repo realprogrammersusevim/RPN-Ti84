@@ -1,5 +1,4 @@
 #include "stdio.h"
-#include "ti/screen.h"
 #include <string.h>
 #include <tice.h>
 
@@ -34,11 +33,11 @@ void init_real_constants() {
   r_10 = os_Int24ToReal(10);
   r_n1 = os_Int24ToReal(-1);
   r_ln10 = os_RealLog(&r_10);
-  r_pi = os_RealAsinRad(&r_n1); // See CE-Programming/toolchain PR #358
+  r_pi = os_FloatToReal(3.141593);
   r_e = os_RealExp(&r_1);
 }
 
-void draw_line_clear(bool clear) {
+void draw_line() {
   strcpy(buffer, "                    ");
   os_RealToStr(buffer, &stack[idx], 0, 1, -1);
   for (int i = 0; i < 15; i++) {
@@ -48,9 +47,6 @@ void draw_line_clear(bool clear) {
   os_SetCursorPos(9, 0);
   os_PutStrFull(buffer);
 }
-
-#define OVERDRAW_IS_REDRAW false
-void draw_line() { draw_line_clear(true); }
 
 void drawdecimal_line() {
   os_SetCursorPos(9, 0);
@@ -115,7 +111,10 @@ void new_entry() {
   negative = false;
   stack[idx] = r_0;
   hint(" ");
-  draw_line_clear(true);
+  draw_line();
+  // The new line doesn't overwrite the second char so manually fix that
+  os_SetCursorPos(9, 1);
+  os_PutStrFull(" ");
 }
 
 void new_problem() {
@@ -151,7 +150,7 @@ void new_problem() {
   do {                                                                         \
     if (os_RealCompare(&stack[idx], &r_0) != 0) {                              \
       stack[idx] = os_func(&stack[idx]);                                       \
-      draw_line_clear(true);                                                   \
+      draw_line();                                                             \
     } else {                                                                   \
       if (idx >= 1) {                                                          \
         stack[idx - 1] = os_func(&stack[idx - 1]);                             \
@@ -202,7 +201,7 @@ real_t realScientificNotation(real_t *a, real_t *b) {
   return os_RealMul(a, &m);
 }
 
-void main() {
+int main() {
   uint8_t key;
 
   init_real_constants();
@@ -214,26 +213,27 @@ void main() {
       if (key == sk_Power) {
         stack[idx] = r_pi;
         constants_mode(false);
-        draw_line_clear(true);
+        draw_line();
       } else if (key == sk_Div) {
         stack[idx] = r_e;
         constants_mode(false);
-        draw_line_clear(true);
+        draw_line();
       } else if (key == sk_Store) {
         os_GetRealVar(ti_X, &stack[idx]);
         constants_mode(false);
-        draw_line_clear(true);
+        draw_line();
       } else if (key == sk_Log) {
         UNARY_OP(realTenExp);
         constants_mode(false);
       } else if (key == sk_Ln) {
         UNARY_OP(os_RealExp);
         constants_mode(false);
-      } else if (key == sk_Sin) { // asin and cos switched intentionally
-        UNARY_OP(radDegAcos);     // See CE-Programming/toolchain PR #358
+      } else if (key ==
+                 sk_Sin) {    // asin and cos no longer switched intentionally
+        UNARY_OP(radDegAsin); // See CE-Programming/toolchain PR #358
         constants_mode(false);
       } else if (key == sk_Cos) {
-        UNARY_OP(radDegAsin);
+        UNARY_OP(radDegAcos);
         constants_mode(false);
       } else if (key == sk_Tan) {
         UNARY_OP(radDegAtan);
@@ -311,12 +311,12 @@ void main() {
             stack[idx] = os_RealSub(&stack[idx], &toAdd);
           decimalfactor = os_RealDiv(&decimalfactor, &r_10);
 
-          draw_line_clear(true);
+          draw_line();
         }
       } else if (key == sk_Chs) {
         stack[idx] = os_RealNeg(&stack[idx]);
         negative = !negative;
-        draw_line_clear(true);
+        draw_line();
       } else if (key == sk_DecPnt) {
         if (!decimal) {
           decimal = true;
@@ -335,7 +335,7 @@ void main() {
         stack[idx] = os_RealFloor(&stack[idx]);
         if (negative)
           os_RealNeg(&stack[idx]);
-        draw_line_clear(true);
+        draw_line();
       } else if (key == sk_Up) {
         if (idx >= 1) {
           delete_stack(idx - 1);
@@ -410,7 +410,7 @@ void main() {
           ;
         os_ClrHome();
         draw_full_stack();
-        draw_line_clear(true);
+        draw_line();
       } else if (key == sk_Window) {
         os_ClrHome();
 
@@ -434,8 +434,10 @@ void main() {
 
         os_ClrHome();
         draw_full_stack();
-        draw_line_clear(true);
+        draw_line();
       }
     }
   }
+
+  return 0;
 }
