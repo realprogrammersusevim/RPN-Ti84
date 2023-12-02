@@ -396,6 +396,15 @@ int main() {
         }
       } else if (key == sk_2nd) {
         constants_mode(true);
+      } else if (key == sk_Prgm && idx >= 2) {
+        // Swap keys
+        real_t temp = stack[idx - 1];
+        stack[idx - 1] = stack[idx - 2];
+        stack[idx - 2] = temp;
+        draw_stack_clear(idx - 2, true);
+        draw_stack_clear(idx - 1, true);
+        os_SetRealListElement(ti_L1, idx - 1, &stack[idx - 1]);
+        os_SetRealListElement(ti_L1, idx - 2, &stack[idx - 2]);
       } else if (key == sk_Yequ) {
         os_ClrHome();
         os_SetCursorPos(0, 0);
