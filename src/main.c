@@ -12,7 +12,7 @@ uint8_t idx;
 bool decimal;
 bool negative;
 bool constantsmode = false;
-bool scimode = true;
+bool scimode = false;
 bool radians = true;
 real_t decimalfactor;
 
