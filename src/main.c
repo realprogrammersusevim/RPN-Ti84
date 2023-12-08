@@ -155,32 +155,6 @@ void new_problem() {
         }                                                                              \
     } while (false)
 
-#define REAL_TRIG(name, os_func)                                                       \
-    real_t name(real_t *a) {                                                           \
-        real_t t;                                                                      \
-        if (radians)                                                                   \
-            t = *a;                                                                    \
-        else                                                                           \
-            t = os_RealDegToRad(a);                                                    \
-        return os_func(&t);                                                            \
-    }
-
-REAL_TRIG(degRadSin, os_RealSinRad)
-REAL_TRIG(degRadCos, os_RealCosRad)
-REAL_TRIG(degRadTan, os_RealTanRad)
-
-#define REAL_INVTRIG(name, os_func)                                                    \
-    real_t name(real_t *a) {                                                           \
-        real_t t = os_func(a);                                                         \
-        if (!radians)                                                                  \
-            t = os_RealRadToDeg(&t);                                                   \
-        return t;                                                                      \
-    }
-
-REAL_INVTRIG(radDegAsin, os_RealAsinRad)
-REAL_INVTRIG(radDegAcos, os_RealAcosRad)
-REAL_INVTRIG(radDegAtan, os_RealAtanRad)
-
 float square(float a) { return a * a; }
 
 float tenPow(float a) { return powf(10, a); }
@@ -196,6 +170,18 @@ float multiply(float a, float b) { return a * b; }
 float divide(float a, float b) { return a / b; }
 
 float recip(float a) { return powf(a, -1); }
+
+float cust_sin(float a) { return radians ? sinf(a) : sinf(a * pi / 180); }
+
+float cust_cos(float a) { return radians ? cosf(a) : cosf(a * pi / 180); }
+
+float cust_tan(float a) { return radians ? tanf(a) : tanf(a * pi / 180); }
+
+float cust_asin(float a) { return radians ? asinf(a) : asinf(a) * 180 / pi; }
+
+float cust_acos(float a) { return radians ? acosf(a) : acosf(a) * 180 / pi; }
+
+float cust_atan(float a) { return radians ? atanf(a) : atanf(a) * 180 / pi; }
 
 int main() {
     uint8_t key;
@@ -224,13 +210,13 @@ int main() {
                 UNARY_OP(expf);
                 constants_mode(false);
             } else if (key == sk_Sin) { // asin and cos no longer switched intentionally
-                UNARY_OP(asinf);        // See CE-Programming/toolchain PR #358
+                UNARY_OP(cust_asin);    // See CE-Programming/toolchain PR #358
                 constants_mode(false);
             } else if (key == sk_Cos) {
-                UNARY_OP(acosf);
+                UNARY_OP(cust_acos);
                 constants_mode(false);
             } else if (key == sk_Tan) {
-                UNARY_OP(atanf);
+                UNARY_OP(cust_atan);
                 constants_mode(false);
             } else if (key == sk_Square) {
                 UNARY_OP(sqrtf);
@@ -365,11 +351,11 @@ int main() {
             } else if (key == sk_Ln) {
                 UNARY_OP(logf);
             } else if (key == sk_Sin) {
-                UNARY_OP(sin);
+                UNARY_OP(cust_sin);
             } else if (key == sk_Cos) {
-                UNARY_OP(cos);
+                UNARY_OP(cust_cos);
             } else if (key == sk_Tan) {
-                UNARY_OP(tan);
+                UNARY_OP(cust_tan);
             } else if (key == sk_Square) {
                 UNARY_OP(square);
             } else if (key == sk_Recip) {
