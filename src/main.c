@@ -336,14 +336,12 @@ int main() {
                     stack[idx - 1] = stack[idx];
                     stack[idx] = 0;
                     idx--;
-                    L1[idx];
                 }
             } else if (key == sk_Enter) {
                 if (idx >= 99) {
                     new_problem();
                 } else {
                     draw_stack(idx++);
-                    L1[idx];
                     L1[idx] = stack[idx - 1];
                     new_entry();
                 }
