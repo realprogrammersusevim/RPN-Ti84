@@ -30,26 +30,6 @@ void init_constants() {
 
 float x, L1[100];
 
-real_t r_0, r_1, r_2, r_3, r_4, r_5, r_6, r_7, r_8, r_9, r_10, r_n1, r_ln10, r_pi, r_e;
-
-void init_real_constants() {
-    r_0 = os_Int24ToReal(0);
-    r_1 = os_Int24ToReal(1);
-    r_2 = os_Int24ToReal(2);
-    r_3 = os_Int24ToReal(3);
-    r_4 = os_Int24ToReal(4);
-    r_5 = os_Int24ToReal(5);
-    r_6 = os_Int24ToReal(6);
-    r_7 = os_Int24ToReal(7);
-    r_8 = os_Int24ToReal(8);
-    r_9 = os_Int24ToReal(9);
-    r_10 = os_Int24ToReal(10);
-    r_n1 = os_Int24ToReal(-1);
-    r_ln10 = os_RealLog(&r_10);
-    r_pi = os_FloatToReal(3.141593);
-    r_e = os_RealExp(&r_1);
-}
-
 void float_to_str(float f, char *buffer) {
     real_t r = os_FloatToReal(f);
     os_RealToStr(buffer, &r, 0, 1, -1);
@@ -201,11 +181,6 @@ REAL_INVTRIG(radDegAsin, os_RealAsinRad)
 REAL_INVTRIG(radDegAcos, os_RealAcosRad)
 REAL_INVTRIG(radDegAtan, os_RealAtanRad)
 
-real_t realLogBase10(real_t *a) {
-    real_t t = os_RealLog(a);
-    return os_RealDiv(&t, &r_ln10);
-}
-
 float square(float a) { return a * a; }
 
 float tenPow(float a) { return powf(10, a); }
@@ -225,7 +200,6 @@ float recip(float a) { return powf(a, -1); }
 int main() {
     uint8_t key;
 
-    init_real_constants();
     init_constants();
     new_problem();
 
