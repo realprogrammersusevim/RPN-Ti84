@@ -17,7 +17,7 @@ bool decimal;
 bool negative;
 bool constantsmode = false;
 bool scimode = false;
-bool radians = true;
+bool radians = false;
 float decimalfactor;
 
 float ln10, pi, e;
