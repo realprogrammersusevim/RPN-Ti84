@@ -1,5 +1,7 @@
 #include "stdint.h"
 #include "stdio.h"
+#include "ti/real.h"
+#include "ti/screen.h"
 #include <math.h>
 #include <string.h>
 #include <tice.h>
@@ -8,9 +10,7 @@
 #define ti_X ("\x58\0\0")
 #define ti_L1 ("\x5D\x0\0")
 
-float stack[101]; // We want much more precision than real_t can give us
-
-// real_t stack[101];
+real_t stack[101];
 char buffer[50];
 uint8_t idx;
 bool decimal;
@@ -18,26 +18,34 @@ bool negative;
 bool constantsmode = false;
 bool scimode = false;
 bool radians = false;
-float decimalfactor;
+real_t decimalfactor;
 
-float ln10, pi, e;
+real_t ln10, pi, e;
+real_t rZero, rOne, rTen;
+
+real_t x;
+real_t L1[100];
 
 void init_constants() {
-    ln10 = logf(10);
-    pi = acosf(-1);
-    e = expf(1);
+    rZero = os_Int24ToReal(0);
+    rOne = os_Int24ToReal(1);
+    rTen = os_Int24ToReal(10);
+
+    ln10 = os_RealLog(&rTen);
+
+    real_t negOne = os_Int24ToReal(-1);
+    pi = os_RealAcosRad(&negOne);
+
+    e = os_RealExp(&rOne);
 }
 
-float x, L1[100];
+void real_to_str(real_t r, char *buffer) { os_RealToStr(buffer, &r, 0, 1, -1); }
 
-void float_to_str(float f, char *buffer) {
-    real_t r = os_FloatToReal(f);
-    os_RealToStr(buffer, &r, 0, 1, -1);
-}
+bool is_zero(real_t r) { return os_RealCompare(&r, &rZero) == 0; }
 
 void draw_line() {
     strcpy(buffer, "                    ");
-    float_to_str(stack[idx], buffer);
+    real_to_str(stack[idx], buffer);
     for (int i = 0; i < 15; i++) {
         os_SetCursorPos(9, i);
         os_PutStrFull(&buffer[i]);
@@ -61,7 +69,7 @@ void draw_stack_clear(uint8_t row, bool clear) {
         os_SetCursorPos(8, 4);
         os_PutStrFull(buffer);
     } else {
-        float_to_str(stack[row], buffer);
+        real_to_str(stack[row], buffer);
         if (clear) {
             os_SetCursorPos(row, 0);
             os_PutStrFull("               ");
@@ -90,6 +98,29 @@ void hint(char *str) {
     os_PutStrFull(str);
 }
 
+void redraw_screen() {
+    os_ClrHome();
+    draw_full_stack();
+    draw_line();
+}
+
+void draw_lines(const char *keys[]) {
+    os_ClrHome();
+
+    uint24_t font_height = os_FontGetHeight() + 3;
+    uint24_t spacing = font_height * 2; // So starts past bar
+
+    for (int i = 0; i < 11; i++) {
+        os_FontDrawText(keys[i], 0, spacing);
+        spacing += font_height;
+    }
+
+    while (os_GetCSC() == 0)
+        ;
+
+    redraw_screen();
+}
+
 void constants_mode(bool enabled) {
     if (enabled) {
         constantsmode = true;
@@ -103,7 +134,7 @@ void constants_mode(bool enabled) {
 void new_entry() {
     decimal = false;
     negative = false;
-    stack[idx] = 0;
+    stack[idx] = rZero;
     hint(" ");
     draw_line();
     // The new line doesn't overwrite the second char so manually fix that
@@ -114,26 +145,24 @@ void new_entry() {
 void new_problem() {
     idx = 0;
     os_ClrHome();
-    buffer[0] = 0;
     new_entry();
 }
 
 #define BINARY_OP(os_func)                                                             \
     do {                                                                               \
-        if (stack[idx] != 0) {                                                         \
+        if (!is_zero(stack[idx])) {                                                    \
             if (idx >= 1) {                                                            \
-                stack[idx - 1] = os_func(stack[idx - 1], stack[idx]);                  \
+                stack[idx - 1] = os_func(&stack[idx - 1], &stack[idx]);                \
                 draw_stack_clear(idx - 1, true);                                       \
                 L1[idx] = stack[idx - 1];                                              \
                 new_entry();                                                           \
             }                                                                          \
         } else {                                                                       \
             if (idx >= 2) {                                                            \
-                stack[idx - 2] = os_func(stack[idx - 2], stack[idx - 1]);              \
+                stack[idx - 2] = os_func(&stack[idx - 2], &stack[idx - 1]);            \
                 draw_stack_clear(idx - 2, true);                                       \
                 delete_stack(idx - 1);                                                 \
                 idx--;                                                                 \
-                L1[idx];                                                               \
                 L1[idx] = stack[idx - 1];                                              \
                 new_entry();                                                           \
             }                                                                          \
@@ -142,12 +171,12 @@ void new_problem() {
 
 #define UNARY_OP(os_func)                                                              \
     do {                                                                               \
-        if (stack[idx] != 0) {                                                         \
-            stack[idx] = os_func(stack[idx]);                                          \
+        if (!is_zero(stack[idx])) {                                                    \
+            stack[idx] = os_func(&stack[idx]);                                         \
             draw_line();                                                               \
         } else {                                                                       \
             if (idx >= 1) {                                                            \
-                stack[idx - 1] = os_func(stack[idx - 1]);                              \
+                stack[idx - 1] = os_func(&stack[idx - 1]);                             \
                 draw_stack_clear(idx - 1, true);                                       \
                 L1[idx] = stack[idx - 1];                                              \
                 new_entry();                                                           \
@@ -155,33 +184,71 @@ void new_problem() {
         }                                                                              \
     } while (false)
 
-float square(float a) { return a * a; }
+real_t square(const real_t *a) { return os_RealMul(a, a); }
 
-float tenPow(float a) { return powf(10, a); }
+real_t tenPow(const real_t *a) { return os_RealPow(&rTen, a); }
 
-float scientificNotation(float a, float b) { return a * powf(10, b); }
+real_t scientificNotation(const real_t *a, const real_t *b) {
+    real_t p = os_RealPow(&rTen, b);
+    return os_RealMul(a, &p);
+}
 
-float add(float a, float b) { return a + b; }
+real_t add(const real_t *a, const real_t *b) { return os_RealAdd(a, b); }
 
-float subtract(float a, float b) { return a - b; }
+real_t subtract(const real_t *a, const real_t *b) { return os_RealSub(a, b); }
 
-float multiply(float a, float b) { return a * b; }
+real_t multiply(const real_t *a, const real_t *b) { return os_RealMul(a, b); }
 
-float divide(float a, float b) { return a / b; }
+real_t divide(const real_t *a, const real_t *b) { return os_RealDiv(a, b); }
 
-float recip(float a) { return powf(a, -1); }
+real_t recip(const real_t *a) { return os_RealInv(a); }
 
-float cust_sin(float a) { return radians ? sinf(a) : sinf(a * pi / 180); }
+real_t log10Real(const real_t *a) {
+    real_t ln = os_RealLog(a);
+    return os_RealDiv(&ln, &ln10);
+}
 
-float cust_cos(float a) { return radians ? cosf(a) : cosf(a * pi / 180); }
+real_t cust_sin(const real_t *a) {
+    if (radians)
+        return os_RealSinRad(a);
+    real_t rad = os_RealDegToRad(a);
+    return os_RealSinRad(&rad);
+}
 
-float cust_tan(float a) { return radians ? tanf(a) : tanf(a * pi / 180); }
+real_t cust_cos(const real_t *a) {
+    if (radians)
+        return os_RealCosRad(a);
+    real_t rad = os_RealDegToRad(a);
+    return os_RealCosRad(&rad);
+}
 
-float cust_asin(float a) { return radians ? asinf(a) : asinf(a) * 180 / pi; }
+real_t cust_tan(const real_t *a) {
+    if (radians)
+        return os_RealTanRad(a);
+    real_t rad = os_RealDegToRad(a);
+    return os_RealTanRad(&rad);
+}
 
-float cust_acos(float a) { return radians ? acosf(a) : acosf(a) * 180 / pi; }
+real_t cust_asin(const real_t *a) {
+    real_t val = os_RealAsinRad(a);
+    if (radians)
+        return val;
+    return os_RealRadToDeg(&val);
+}
 
-float cust_atan(float a) { return radians ? atanf(a) : atanf(a) * 180 / pi; }
+real_t cust_acos(const real_t *a) {
+    real_t val = os_RealAcosRad(a);
+    if (radians)
+        return val;
+    return os_RealRadToDeg(&val);
+}
+
+real_t cust_atan(const real_t *a) {
+    real_t val = os_RealAtanRad(a);
+    if (radians)
+        return val;
+    return os_RealRadToDeg(&val);
+}
 
 int main() {
     uint8_t key;
@@ -191,136 +258,136 @@ int main() {
 
     while (!((key = os_GetCSC()) == sk_Graph || (constantsmode && key == sk_Mode))) {
         if (constantsmode) {
-            if (key == sk_Power) {
+            switch (key) {
+            case sk_Power:
                 stack[idx] = pi;
                 constants_mode(false);
                 draw_line();
-            } else if (key == sk_Div) {
+                break;
+            case sk_Div:
                 stack[idx] = e;
                 constants_mode(false);
                 draw_line();
-            } else if (key == sk_Store) {
+                break;
+            case sk_Store:
                 x = stack[idx];
                 constants_mode(false);
                 draw_line();
-            } else if (key == sk_Log) {
+                break;
+            case sk_Log:
                 UNARY_OP(tenPow);
                 constants_mode(false);
-            } else if (key == sk_Ln) {
-                UNARY_OP(expf);
+                break;
+            case sk_Ln:
+                UNARY_OP(os_RealExp);
                 constants_mode(false);
-            } else if (key == sk_Sin) { // asin and cos no longer switched intentionally
-                UNARY_OP(cust_asin);    // See CE-Programming/toolchain PR #358
+                break;
+            case sk_Sin:
+                UNARY_OP(cust_asin);
                 constants_mode(false);
-            } else if (key == sk_Cos) {
+                break;
+            case sk_Cos:
                 UNARY_OP(cust_acos);
                 constants_mode(false);
-            } else if (key == sk_Tan) {
+                break;
+            case sk_Tan:
                 UNARY_OP(cust_atan);
                 constants_mode(false);
-            } else if (key == sk_Square) {
-                UNARY_OP(sqrtf);
+                break;
+            case sk_Square:
+                UNARY_OP(os_RealSqrt);
                 constants_mode(false);
-            } else if (key == sk_Comma) {
+                break;
+            case sk_Comma:
                 BINARY_OP(scientificNotation);
                 constants_mode(false);
-            } else if (key == sk_Apps) {
+                break;
+            case sk_Apps:
                 radians = !radians;
                 constants_mode(false);
                 hint(radians ? "r" : "d");
-            } else if (key == sk_2nd) {
+                break;
+            case sk_2nd:
                 constants_mode(false);
-            } else if (key == sk_Del) {
+                break;
+            case sk_Del:
                 constants_mode(false);
                 new_problem();
+                break;
             }
         } else {
             if (key == sk_0 || key == sk_1 || key == sk_2 || key == sk_3 ||
                 key == sk_4 || key == sk_5 || key == sk_6 || key == sk_7 ||
                 key == sk_8 || key == sk_9) {
+                int toAddInt = 0;
+                if (key == sk_1)
+                    toAddInt = 1;
+                if (key == sk_2)
+                    toAddInt = 2;
+                if (key == sk_3)
+                    toAddInt = 3;
+                if (key == sk_4)
+                    toAddInt = 4;
+                if (key == sk_5)
+                    toAddInt = 5;
+                if (key == sk_6)
+                    toAddInt = 6;
+                if (key == sk_7)
+                    toAddInt = 7;
+                if (key == sk_8)
+                    toAddInt = 8;
+                if (key == sk_9)
+                    toAddInt = 9;
+
+                real_t rAdd = os_Int24ToReal(toAddInt);
+
                 if (!decimal) {
-                    stack[idx] = stack[idx] * 10;
-                    float toAdd = 0;
-                    if (key == sk_1)
-                        toAdd = 1;
-                    if (key == sk_2)
-                        toAdd = 2;
-                    if (key == sk_3)
-                        toAdd = 3;
-                    if (key == sk_4)
-                        toAdd = 4;
-                    if (key == sk_5)
-                        toAdd = 5;
-                    if (key == sk_6)
-                        toAdd = 6;
-                    if (key == sk_7)
-                        toAdd = 7;
-                    if (key == sk_8)
-                        toAdd = 8;
-                    if (key == sk_9)
-                        toAdd = 9;
+                    stack[idx] = os_RealMul(&stack[idx], &rTen);
                     if (!negative)
-                        stack[idx] = stack[idx] + toAdd;
+                        stack[idx] = os_RealAdd(&stack[idx], &rAdd);
                     else
-                        stack[idx] = stack[idx] - toAdd;
+                        stack[idx] = os_RealSub(&stack[idx], &rAdd);
                     draw_line();
                 } else {
-                    float toAdd = 0;
-                    if (key == sk_1)
-                        toAdd = 1;
-                    if (key == sk_2)
-                        toAdd = 2;
-                    if (key == sk_3)
-                        toAdd = 3;
-                    if (key == sk_4)
-                        toAdd = 4;
-                    if (key == sk_5)
-                        toAdd = 5;
-                    if (key == sk_6)
-                        toAdd = 6;
-                    if (key == sk_7)
-                        toAdd = 7;
-                    if (key == sk_8)
-                        toAdd = 8;
-                    if (key == sk_9)
-                        toAdd = 9;
-                    toAdd = toAdd * decimalfactor;
+                    rAdd = os_RealMul(&rAdd, &decimalfactor);
                     if (!negative)
-                        stack[idx] = stack[idx] + toAdd;
+                        stack[idx] = os_RealAdd(&stack[idx], &rAdd);
                     else
-                        stack[idx] = stack[idx] - toAdd;
-                    decimalfactor = decimalfactor / 10;
+                        stack[idx] = os_RealSub(&stack[idx], &rAdd);
+                    decimalfactor = os_RealDiv(&decimalfactor, &rTen);
 
                     draw_line();
                 }
             } else if (key == sk_Chs) {
-                stack[idx] = -(stack[idx]);
+                stack[idx] = os_RealNeg(&stack[idx]);
                 negative = !negative;
                 draw_line();
             } else if (key == sk_DecPnt) {
                 if (!decimal) {
                     decimal = true;
-                    decimalfactor = 0.1;
+                    decimalfactor = os_RealDiv(&rOne, &rTen);
                     drawdecimal_line();
                 }
             } else if (key == sk_Clear) {
                 new_entry();
             } else if (key == sk_Left) {
                 if (negative)
-                    stack[idx] = -(stack[idx]);
+                    stack[idx] = os_RealNeg(&stack[idx]);
                 if (!decimal) {
-                    stack[idx] = stack[idx] / 10;
+                    stack[idx] = os_RealDiv(&stack[idx], &rTen);
                 } else
                     decimal = false;
-                stack[idx] = floorf(stack[idx]);
+
+                stack[idx] = os_RealFloor(&stack[idx]);
+
                 if (negative)
-                    stack[idx] = -(stack[idx]);
+                    stack[idx] = os_RealNeg(&stack[idx]);
                 draw_line();
             } else if (key == sk_Up) {
                 if (idx >= 1) {
                     delete_stack(idx - 1);
                     stack[idx - 1] = stack[idx];
-                    stack[idx] = 0;
+                    stack[idx] = rZero;
                     idx--;
                 }
             } else if (key == sk_Enter) {
@@ -345,11 +412,11 @@ int main() {
             } else if (key == sk_Div) {
                 BINARY_OP(divide);
             } else if (key == sk_Power) {
-                BINARY_OP(powf);
+                BINARY_OP(os_RealPow);
             } else if (key == sk_Log) {
-                UNARY_OP(log10f);
+                UNARY_OP(log10Real);
             } else if (key == sk_Ln) {
-                UNARY_OP(logf);
+                UNARY_OP(os_RealLog);
             } else if (key == sk_Sin) {
                 UNARY_OP(cust_sin);
             } else if (key == sk_Cos) {
@@ -363,7 +430,7 @@ int main() {
             } else if (key == sk_Comma) {
                 BINARY_OP(scientificNotation);
             } else if (key == sk_Store) {
-                if (stack[idx] != 0) {
+                if (!is_zero(stack[idx])) {
                     x = stack[idx];
                     hint(">");
                 } else {
@@ -376,7 +443,7 @@ int main() {
                 constants_mode(true);
             } else if (key == sk_Prgm && idx >= 2) {
                 // Swap keys
-                float temp = stack[idx - 1];
+                real_t temp = stack[idx - 1];
                 stack[idx - 1] = stack[idx - 2];
                 stack[idx - 2] = temp;
                 draw_stack_clear(idx - 2, true);
@@ -399,10 +466,6 @@ int main() {
                 draw_full_stack();
                 draw_line();
             } else if (key == sk_Window) {
-                os_ClrHome();
-
-                uint24_t font_height = os_FontGetHeight() + 3;
-                uint24_t spacing = font_height * 2; // So starts past bar
                 const char *keys[] = {
                     "^  Pop stack",          "<  Backspace",
                     "del  Clear stack",      "mode  Switch notation",
@@ -410,18 +473,7 @@ int main() {
                     "2nd apps  Deg/radians", "graph / 2nd mode  Exit",
                     "clear  Clear value",    "enter  Push value to stack",
                     ",  SCI binary operator"};
-
-                for (int i = 0; i < 11; i++) {
-                    os_FontDrawText(keys[i], 0, spacing);
-                    spacing += font_height;
-                }
-
-                while (os_GetCSC() == 0)
-                    ;
-
-                os_ClrHome();
-                draw_full_stack();
-                draw_line();
+                draw_lines(keys);
             }
         }
     }
