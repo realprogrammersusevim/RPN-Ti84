@@ -19,6 +19,9 @@ endif
 
 include $(shell cedev-config --makefile)
 
-.PHONY: install
+.PHONY: install format
 install: bin/$(TARGET8XP)
 	$(Q)tilp bin/$(TARGET8XP)
+
+format:
+	clang-format -i **/*.c
